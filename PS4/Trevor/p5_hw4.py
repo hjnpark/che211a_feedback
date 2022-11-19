@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+kb = 1.380649*10**-23 #m^2 kg s^-2 K^-1
+Avo = 6.02214e23
 
 def LJ(r1, r2, atom1_array, atom2_array, ko=138.935456):
     """
@@ -65,7 +67,7 @@ def LJ(r1, r2, atom1_array, atom2_array, ko=138.935456):
 def checkerboard(shape):
     return np.indices(shape).sum(axis=0) % 2
 board = checkerboard((4,4,4))
-print(board)
+#print(board)
 
 def make_cube(n, spacing = 0.282, atoms = [11, 17]):
     positions = np.zeros((n ** 3, 3))
@@ -74,7 +76,7 @@ def make_cube(n, spacing = 0.282, atoms = [11, 17]):
     for i in range(n):
         for j in range(n):
             for k in range(n):
-                print(board[i, j, k])
+                #print(board[i, j, k])
                 positions[row] = i * spacing, j * spacing, k * spacing
                 if board[i, j, k] % 2 == 0:
                     #atom identity, charge, sigma, e
@@ -86,8 +88,8 @@ def make_cube(n, spacing = 0.282, atoms = [11, 17]):
 
 positions, atom_array  = make_cube(4)
 
-print(positions)
-print(atom_array)
+#print(positions)
+#print(atom_array)
 with open('nacl.xyz', 'w') as f:
     print("%i" % positions.shape[0], file=f)
     print('NaCL starting traj', file=f)
@@ -190,51 +192,115 @@ def optimize(positions, stepsize, stepnumber, fname, comment):
             print(f"{status}% done.")
     print("----------Optimization completed----------")
     force_array, E_tot = get_force_array_and_pot_energy(positions)  # Calculating final energy and force
-    write_xyz(positions, atom_array,fname= 'optimized_structure', comment= comment)
+    write_xyz(positions, atom_array,fname= 'optimized_structure.xyz', comment= comment)
     return positions, energy_list, step_list, E_tot
 
 
-positions, energy_list, step_list, E_tot = optimize(positions, stepsize= 0.001, stepnumber = 1000, fname= "Opt", comment= 'Starting Structure')
+#positions, energy_list, step_list, E_tot = optimize(positions, stepsize= 0.001, stepnumber = 1000, fname= "Opt", comment= 'Starting Structure')
+# HP: loading the optimized one, so we don't have to optimize NaCl lattice evertime we run this.
+xyz = open("optimized_structure.xyz")
+n_atoms = int(xyz.readline())
+optimized_positions = np.empty((n_atoms,3))
+title = xyz.readline()
+p = 0
+for line in xyz:
+    atom,x,y,z = line.split()
+    optimized_positions[p] = ([float(x), float(y), float(z)])
+    p += 1
+xyz.close()
 
-plt.plot(step_list, energy_list)
-plt.show()
+#plt.plot(step_list, energy_list)
+#plt.show()
 
-kb = 1.380649*10**-23 #m^2 kg s^-2 K^-1
+print("Final energy %f" %E_tot)
 
 
+#def Andersen_thermostat(num_particles, atom_array, temp):
+#    """
+#    Generates velocities from the Maxwell_Boltzmann distribution
+#
+#    Parameters
+#    ----------
+#    mass : float
+#        Mass of particle (g/mol)
+#
+#    temp : float
+#        Temperature (K)
+#
+#    num_particles : int
+#        Number of particles
+#
+#    Returns
+#    ----------
+#    velocities : numpy array (num_particles x 3)
+#        Velocity of each particle taken from Maxwell-Boltzmann distribution (nm/ps)
+#    """
+#    velocities = np.zeros((num_particles,3))
+#    for count, row in enumerate(atom_array):
+#        mass = row[4]
+#        mass /=6.02214e23 * 1000
+#        standard_deviation = np.sqrt(kb * temp / mass)
+#        velocity = standard_deviation * np.random.randn(1, 3)
+#        velocities[count,] = velocity
+#    return velocities
 
-def Andersen_thermostat(num_particles, atom_array, temp):
+#print(initial_velocities)
+#
+
+# HP: I swapped your thermostate function with mine and it's working properly now. Maybe it's a unit problem.
+def Max_Boltz_1D(v, m, T):
     """
-    Generates velocities from the Maxwell_Boltzmann distribution
-
+    1D Maxwell_Boltmann distribution
     Parameters
     ----------
-    mass : float
-        Mass of particle (g/mol)
-
-    temp : float
-        Temperature (K)
-
-    num_particles : int
-        Number of particles
-
+    v : float
+        The speed for calculating the probability
+    m : float
+        Atomic mass
+    T : float
+        Temperature
     Returns
-    ----------
-    velocities : numpy array (num_particles x 3)
-        Velocity of each particle taken from Maxwell-Boltzmann distribution (nm/ps)
+    -------
+    P : float
+        Probability
     """
-    velocities = np.zeros((num_particles,3))
-    for count, row in enumerate(atom_array):
-        mass = row[4]
-        mass = mass/ (6.023 * 10 ** 23)
-        standard_deviation = np.sqrt(kb * temp / mass)
-        velocity = standard_deviation * np.random.randn(1, 3)
-        velocities[count,] = velocity
-    return velocities/1000
+    m /= Avo * 1000
+    term1 = np.sqrt(m / (2 * np.pi * kb * T))
+    term2 = np.exp((-m * (1000 * v) ** 2) / (2 * kb * T))  # 1000 is for nm/ps -> m/s
+    P = term1 * term2
+    return P
 
-initial_velocities = Andersen_thermostat(64, atom_array, 1200)
-print(initial_velocities)
 
+def Andersen_thermostat(positions, m, T):
+    """
+    This function resets velocities during MD simulations
+    Parameters
+    ----------
+    positions : array
+        n x 3 array of atomic coordinates
+    m : array
+        n x 3 array of atomic masses where one atom has same mass for its x, y, and z coordinate
+    T : float
+        Temperature (K)
+    Returns
+    -------
+    vels : array
+        n x 3 array with velocities
+    """
+    vels = np.zeros_like(positions)
+    for i in range(positions.shape[0]):
+        for j in range(positions.shape[1]):
+            w = 4  # nm/ps
+            h = Max_Boltz_1D(0, m[i, j], T)
+            x = w
+            y = h
+            while Max_Boltz_1D(x, m[i, j], T) <= y:
+                x = np.random.uniform(-w, w)
+                y = np.random.uniform(0, h)
+            vels[i, j] = x
+    return vels
+
+initial_velocities = Andersen_thermostat(optimized_positions, atom_array[:, -1].repeat(3).reshape(-1,3), 1200)
 def find_delta_x(velocity, time_step, force, mass):
     """"
     Finding the change in velocity over a time step delta t.
@@ -259,11 +325,11 @@ def find_delta_x(velocity, time_step, force, mass):
         A numpy array with x, y, and z position components. (nm)
 
     """
-    delta_x = velocity*time_step + 0.5 *(force)*(1/mass.reshape(64, 1)) * (time_step**2)
+    delta_x = velocity*time_step + 0.5 *(force)*(1/np.repeat(mass, 3).reshape(-1, 3)) * (time_step**2)
     return delta_x
 
 def verlet_delta_v(forces, updated_forces, time_step, mass):
-    delta_v = (time_step / (2*mass.reshape(64, 1))) * (forces + updated_forces)
+    delta_v = (time_step ) * (forces + updated_forces) / (2*np.repeat(mass,3).reshape(-1, 3))
     return delta_v
 
 def verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass):
@@ -275,52 +341,58 @@ def verlet_molecular_dynamics(force_array, current_positions, current_velocities
     return updated_forces, pot_energy, new_pos, new_vel
 
 def get_kinetic_energy(velocity, mass):
-    KE = np.sum((0.5) * mass.reshape(64, 1) * (velocity)**2)
+    KE = np.sum((0.5) * np.repeat(mass,3).reshape(-1, 3) * (velocity)**2)
 
     return KE
 
 time_step = 0.005 #ps
-num_steps = range(25,000)
+#num_steps = range(25,000)
 #mass = 131.29 #g/mol
 mass_array = atom_array[:, 4]
 print(mass_array, 'Mass_array')
-current_positions = positions.copy()
+current_positions = optimized_positions.copy()
 current_velocities = initial_velocities
 force_array, pot_energy = get_force_array_and_pot_energy(current_positions)
 kin_energy = get_kinetic_energy(current_velocities, mass_array)
 print(kin_energy, 'hi im ke')
-ke = 0
-for i in range(len(mass_array)):
-    ke += 0.5 * (mass_array[i]) * (np.linalg.norm(current_velocities[i, :]))**2
-ke = np.sum(ke)
-print(ke, 'is this the same?')
+#ke = 0
+#for i in range(len(mass_array)):
+#    ke += 0.5 * (mass_array[i]) * (np.linalg.norm(current_velocities[i, :]))**2
+#ke = np.sum(ke)
+#print(ke, 'is this the same?')
 E_tot = []
+ke = []
+pe = []
 
 #E_tot.append(pot_energy + kin_energy)
 
 for i in range(2000):
-    print(i)
     force_array, pot_energy, current_positions, current_velocities = verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass_array)
     kin_energy = get_kinetic_energy(current_velocities, mass_array)
+    ke.append(kin_energy)
+    pe.append(pot_energy)
     E_tot.append(pot_energy + kin_energy)
 
 
-print(E_tot, 'Etotal')
-print(E_tot)
-plt.plot(range(len(E_tot[50:])), E_tot[50:])
+#print(E_tot, 'Etotal')
+#print(E_tot)
+plt.plot(range(len(E_tot)), E_tot, label='Total')
+plt.plot(range(len(ke)), ke, label='KE')
+plt.plot(range(len(pe)), pe, label='PE')
 plt.title('Total Energy (kJ) vs.  Step (Verlet)')
 plt.xlabel('Time (ps)')
+plt.legend()
 #plt.ylim(np.max(E_tot) - 1000, np.max(E_tot) + 1000)
 plt.show()
 
 #Part d)
 time_step = 0.005 #ps
-num_steps = range(25,000)
+#num_steps = range(25,000)
 #mass = 131.29 #g/mol
 mass_array = atom_array[:, 4]
 print(mass_array, 'Mass_array')
 current_positions = positions.copy()
-initial_velocities = Andersen_thermostat(64, atom_array, 1200)
+#initial_velocities = Andersen_thermostat(64, atom_array, 1200)
 current_velocities = initial_velocities
 force_array, pot_energy = get_force_array_and_pot_energy(current_positions)
 kin_energy = get_kinetic_energy(current_velocities, mass_array)
@@ -331,6 +403,8 @@ for i in range(len(mass_array)):
 ke = np.sum(ke)
 print(ke, 'is this the same?')
 E_tot = []
+pe = []
+ke = []
 Rg = []
 
 def radius_of_gyration(positions):
@@ -338,24 +412,28 @@ def radius_of_gyration(positions):
 
 
 print()
-for i in range(100000):
+for i in range(25000):
     current_step = i
-    print(current_step)
+    #print(current_step)
     force_array, pot_energy, current_positions, current_velocities = verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass_array)
     kin_energy = get_kinetic_energy(current_velocities, mass_array)
+    pe.append(pot_energy)
+    ke.append(kin_energy)
     E_tot.append(pot_energy + kin_energy)
     if (current_step +1) in [i for i in range(250, 100000, 250)]:
         print(current_step)
-        current_velocities = Andersen_thermostat(64, atom_array, 1200)
+        current_velocities = Andersen_thermostat(current_positions, atom_array[:, -1].repeat(3).reshape(-1,3), 1200)
+
         Rg.append(radius_of_gyration(current_positions))
-    if i == 1000:
-        break
+    #if i == 1000:
+    #    break
 
-
-print(E_tot, 'Etotal')
-print(E_tot)
-plt.plot(range(len(E_tot)), E_tot)
+plt.plot(range(len(E_tot)), E_tot, label = 'Total')
+plt.plot(range(len(pe)), pe , label = 'PE')
+plt.plot(range(len(ke)), ke , label = 'KE')
 plt.title('Total Energy (kJ) vs.  Step (Verlet)')
 plt.xlabel('Time (ps)')
+plt.legend()
 #plt.ylim(np.max(E_tot) - 1000, np.max(E_tot) + 1000)
 plt.show()
+# HP: This plot looks correct. Now you can try to plot the radius of gyration. 

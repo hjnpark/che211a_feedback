@@ -149,9 +149,9 @@ def get_kinetic_energy(velocity, mass):
 
 #Part e)
 time_step = 0.002 #ps
-num_steps = range(25,000)
+#num_steps = range(25,000)
 mass = 131.29 #g/mol
-min_energy_dist = .46021 #   nm
+min_energy_dist = .46020944 #   nm
 current_positions = make_cube(3, min_energy_dist)
 current_velocities = np.zeros_like(current_positions)
 force_array = np.zeros_like(current_positions)
@@ -161,33 +161,29 @@ pe = []
 
 
 for i in range(25000):
-    print(i)
+    #print(i)
     kin_energy = get_kinetic_energy(current_velocities, mass)
     pot_energy, current_positions, current_velocities = euler_molecular_dynamics(current_positions, current_velocities, time_step, mass)
     pe.append(pot_energy)
     ke.append(kin_energy)
     E_tot.append(kin_energy + pot_energy)
-    if i==10000:
-        break
-print(E_tot, "totallll energy")
-print(E_tot, 'Etotal')
-plt.plot(range(len(E_tot)), E_tot)
-plt.title('Total Energy (kJ) vs. Simulation Step (Euler)')
-plt.xlabel('Time (ps)')
-plt.show()
-plt.plot(range(len(ke)), ke)
-plt.title('kin Energy (kJ) vs. Simulation Step (Euler)')
-plt.xlabel('Time (ps)')
-plt.show()
-plt.plot(range(len(pe)), pe)
+    #if i==10000:
+    #    break
+#print(E_tot, "totallll energy")
+#print(E_tot, 'Etotal')
+plt.plot(range(len(E_tot)), E_tot, label = 'Total E')
+plt.plot(range(len(ke)), ke, label = 'KE')
+plt.plot(range(len(pe)), pe, label = 'PE')
 plt.title('pot Energy (kJ) vs. Simulation Step (Euler)')
 plt.xlabel('Time (ps)')
+plt.legend()
 plt.show()
 
 #Part f)
-def get_kinetic_energy(velocity, mass):
-    KE = (0.5) * mass * (np.linalg.norm(velocity))**2
-    return KE
+# HP: Not sure why you have two get_kinetic_energy functions.
+#def get_kinetic_energy(velocity, mass):
+#    KE = (0.5) * mass * (np.linalg.norm(velocity))**2
+#    return KE
 
 #Part g)
 
@@ -207,32 +203,40 @@ def verlet_molecular_dynamics(force_array, current_positions, current_velocities
 ##### Time step 0.002
 time_step = 0.002 #ps
 mass = 131.29 #g/mol
-min_energy_dist = .46021  # Angstrom
+min_energy_dist = .46020944 # Angstrom
 current_positions = make_cube(3, min_energy_dist)
 current_velocities = np.zeros_like(current_positions)
 force_array, pot_energy = get_force_array_and_pot_energy(current_positions)
 E_tot = []
+ke = []
+pe = []
 E_tot.append(pot_energy)
 
 for i in range(25000):
-    print(i)
+    #print(i)
     force_array, pot_energy, current_positions, current_velocities = verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass)
     kin_energy = get_kinetic_energy(current_velocities, mass)
     E_tot.append(pot_energy + kin_energy)
-    if i==10000:
-        break
+    pe.append(pot_energy)
+    ke.append(kin_energy)
 
-print(E_tot, 'Etotal')
-plt.plot(range(len(E_tot)), E_tot)
+    #if i==10000:
+    #    break
+
+#print(E_tot, 'Etotal')
 plt.title('Total Energy (kJ) vs. Simulation Step (Verlet)')
+plt.plot(range(len(E_tot)), E_tot, label = 'Total E')
+plt.plot(range(len(ke)), ke, label = 'KE')
+plt.plot(range(len(pe)), pe, label = 'PE')
 plt.xlabel('Time (ps)')
+plt.legend()
 plt.show()
 
 ############## larger time step
 
 time_step = 0.005 #ps
 mass = 131.29 #g/mol
-min_energy_dist = .46021  # Angstrom
+min_energy_dist = .46020944  # Angstrom
 current_positions = make_cube(3, min_energy_dist)
 current_velocities = np.zeros_like(current_positions)
 force_array, pot_energy = get_force_array_and_pot_energy(current_positions)
@@ -240,14 +244,14 @@ E_tot = []
 E_tot.append(pot_energy)
 
 for i in range(10000):
-    print(i)
+    #print(i)
     force_array, pot_energy, current_positions, current_velocities = verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass)
     kin_energy = get_kinetic_energy(current_velocities, mass)
     E_tot.append(pot_energy + kin_energy)
-    if i==10000:
-        break
+    #if i==10000:
+    #    break
 
-print(E_tot, 'Etotal')
+#print(E_tot, 'Etotal')
 plt.plot(range(len(E_tot)), E_tot)
 plt.title('Total Energy (kJ) vs. Simulation Step (Verlet)')
 plt.xlabel('Time (ps)')
@@ -257,7 +261,7 @@ plt.show()
 
 time_step = 0.001 #ps
 mass = 131.29 #g/mol
-min_energy_dist = .46021  # Angstrom
+min_energy_dist = .46020944  # Angstrom
 current_positions = make_cube(3, min_energy_dist)
 current_velocities = np.zeros_like(current_positions)
 force_array, pot_energy = get_force_array_and_pot_energy(current_positions)
@@ -265,14 +269,14 @@ E_tot = []
 E_tot.append(pot_energy)
 
 for i in range(50000):
-    print(i)
+    #print(i)
     force_array, pot_energy, current_positions, current_velocities = verlet_molecular_dynamics(force_array, current_positions, current_velocities, time_step, mass)
     kin_energy = get_kinetic_energy(current_velocities, mass)
     E_tot.append(pot_energy + kin_energy)
-    if i==10000:
-        break
+    #if i==10000:
+    #    break
 
-print(E_tot, 'Etotal')
+#print(E_tot, 'Etotal')
 plt.plot(range(len(E_tot)), E_tot)
 plt.title('Total Energy (kJ) vs. Simulation Step (Verlet)')
 plt.xlabel('Time (ps)')
